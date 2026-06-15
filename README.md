@@ -28,7 +28,8 @@ const preparedTodos: Todo[] = todosFromServer.map(todo => {
 
 // 3. Передаем готовую базу в useState
 const [todos, setTodos] = useState<Todo[]>(preparedTodos);
-------------------------------
+```
+
 ## 🧩 Паттерн: Поиск уникального (одиночного) элемента в массиве дубликатов
 
 ### ❓ Проблема
@@ -71,3 +72,5 @@ export const UniqueNumberChecker: React.FC = () => {
     </div>
   );
 };
+```
+
