@@ -118,3 +118,62 @@ const addTodo = ({ title, userId }: { title: string; userId: number }) => {
   setTodos(prevTodos => [...prevTodos, newTodo]);
 };
 ´´´
+## 🧩 Паттерн: Задержка закрытия окна при потере фокуса (onBlur + setTimeout)
+
+### ❓ Проблема
+При создании кастомных выпадающих списков (Dropdown), окон автокомплита или подсказок мы используем событие `onBlur` (потеря фокуса), чтобы автоматически закрывать окно, когда пользователь кликает вне его области. Но возникает баг: если пользователь кликает по элементу *внутри* самого выпадающего списка (например, хочет выбрать пункт меню), событие `onBlur` срабатывает **быстрее**, чем событие `onClick` на этом пункте. В итоге окно исчезает из DOM, а клик по пункту так и не регистрируется.
+
+### 🧠 Как это понять (Ментальная модель)
+Представь охранника (событие `onBlur`), который стоит у дверей клуба (нашего выпадающего списка). Как только последний посетитель отворачивается от двери, охранник моментально выключает свет и запирает клуб. Посетитель хотел нажать на кнопку внутри, но не успел — стало темно. `setTimeout` на 200 миллисекунд — это как если бы мы попросили охранника: «Когда увидишь, что все уходят, не закрывай дверь мгновенно. Сосчитай про себя до трех». За эти «три секунды» (200 мс) посетитель как раз успевает нажать на нужную кнопку, клик срабатывает, а уже потом закрывается сама дверь.
+
+### 💻 Код-рецепт (React + TypeScript)
+
+**В дочернем компоненте (например, `SearchAutocomplete.tsx`):**
+```typescript
+import React, { useState } from 'react';
+
+export const SearchAutocomplete: React.FC = () => {
+  const [isActive, setIsActive] = useState<boolean>(false);
+  const [selectedItem, setSelectedItem] = useState<string>('');
+  const items = ['React', 'TypeScript', 'JavaScript'];
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {/* Инпут, который открывает список при фокусе и закрывает при потере фокуса */}
+      <input
+        type="text"
+        placeholder="Поиск технологии..."
+        value={selectedItem}
+        onChange={(e) => setSelectedItem(e.target.value)}
+        onFocus={() => setIsActive(true)}
+        
+        // Паттерн: откладываем закрытие, чтобы onClick внутри списка успел отработать
+        onBlur={() => {
+          setTimeout(() => {
+            setIsActive(false);
+          }, 200); // 200мс достаточно для регистрации клика на элементах списка
+        }}
+      />
+
+      {/* Выпадающий список, который рендерится в зависимости от стейта */}
+      {isActive && (
+        <ul style={{ position: 'absolute', top: '100%', left: 0, background: '#fff', border: '1px solid #ccc' }}>
+          {items.map((item) => (
+            <li 
+              key={item} 
+              onClick={() => {
+                // Если убрать setTimeout в onBlur, этот код никогда не выполнится
+                setSelectedItem(item);
+                console.log(`Выбрано: ${item}`);
+              }}
+              style={{ cursor: 'pointer', padding: '8px' }}
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+```
