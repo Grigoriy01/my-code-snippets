@@ -139,7 +139,7 @@ const addTodo = ({ title, userId }: { title: string; userId: number }) => {
 ### 💻 Код-рецепт (React + TypeScript)
 
 **В дочернем компоненте (например, `SearchAutocomplete.tsx`):**
-<details>
+
 ```typescript
 import React, { useState } from 'react';
 
@@ -188,4 +188,4 @@ export const SearchAutocomplete: React.FC = () => {
   );
 };
 ```
-</details>
+
