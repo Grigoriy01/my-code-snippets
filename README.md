@@ -117,7 +117,8 @@ const addTodo = ({ title, userId }: { title: string; userId: number }) => {
   // 4. Обновляем стейт, добавляя новую задачу в конец (или в начало) списка
   setTodos(prevTodos => [...prevTodos, newTodo]);
 };
-´´´
+```
+
 ## 🧩 Паттерн: Задержка закрытия окна при потере фокуса (onBlur + setTimeout)
 
 ### ❓ Проблема
