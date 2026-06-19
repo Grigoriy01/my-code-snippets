@@ -195,10 +195,13 @@ export const TodoApp: React.FC = () => {
    * Обработчик добавления задачи с деструктуризацией и обогащением данных
    */
   const handleAddTodo = ({ title, userId }: NewTodoPayload) => {
-    // 1. Безопасное нахождение максимального ID
-    const maxId = todos.length > 0 
+    // Безопасный поиск максимального ID через reduce (не переполняет стек)
+  const maxId = todos.reduce((max, todo) => (todo.id > max ? todo.id : max), 0);
+  const nextId = maxId + 1;
+    // 1. Безопасное нахождение максимального ID (für kleine Array)
+    /*const maxId = todos.length > 0 
       ? Math.max(...todos.map((todo) => todo.id)) 
-      : 0;
+      : 0; */
 
     const nextId = maxId + 1;
 
