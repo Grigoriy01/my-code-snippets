@@ -1,4 +1,5 @@
 //#region Pattern: Find Single Unique Number / Поиск уникального (одиночного) элемента в массиве дубликатов
+//=========================================================================================================
 ## Pattern: Find Single Unique Number / Поиск уникального (одиночного) элемента в массиве дубликатов
 // Description: Поиск единственного неповторяющегося числа в массиве, где все остальные числа имеют пару.
 // Tags: typescript, algorithm, xor, bitwise, reduce, find, indexof, performance
@@ -24,7 +25,7 @@
 
 import React, { useState } from 'react';
 
-// ==========================================
+
 // СПОСОБ 1: УЛЬТИМАТИВНЫЙ (Линейное время O(n), память O(1))
 // ==========================================
 /**
@@ -38,7 +39,6 @@ export const findSingleNumXOR = (nums: number[]): number => {
   return nums.reduce((acc, n) => acc ^ n, 0);
 };
 
-// ==========================================
 // СПОСОБ 2: ДЕКЛАРАТИВНЫЙ (Встроенные методы)
 // ==========================================
 /**
@@ -51,7 +51,6 @@ export const findSingleNumIndexes = (nums: number[]): number | undefined => {
   return nums.find(n => nums.indexOf(n) === nums.lastIndexOf(n));
 };
 
-// ==========================================
 // ПРИМЕР ИСПОЛЬЗОВАНИЯ В REACT-КОМПОНЕНТЕ
 // ==========================================
 export const UniqueNumberChecker: React.FC = () => {
