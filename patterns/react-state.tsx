@@ -411,3 +411,189 @@ export const ServerListController: React.FC = () => {
   );
 };
 //#endregion
+//#region Pattern: Prop-Driven Data Fetching Architecture / Сквозная архитектура реактивной загрузки по пропсу
+//=====================================================================================================
+## Pattern: Prop-Driven Data Fetching Architecture / Сквозная архитектура реактивной загрузки по пропсу
+//=====================================================================================================
+// Description: Объединенная схема динамического API-клиента на дженериках и реактивного UI-компонента, синхронизирующего сетевой стейт со сменой внешних пропсов.
+// Tags: react, typescript, generics, fetch, api-client, use-effect, dependency-array, react-memo, display-name
+
+/**
+ * ❓ ПРОБЛЕМА:
+ * При разработке интерфейсов, зависящих от внешних параметров (например, ID выбранного пользователя), часто 
+ * возникают три критические ошибки: смешивание хардкод-URL адресов с UI-логикой, отсутствие сброса стейта 
+ * при изменении входного пропса (из-за чего пользователь видит старые данные во время загрузки новых), 
+ * и утечки памяти / "гонки условий" (race conditions) при асинхронных ответах от сервера.
+ * * Напряженность типов возникает при реализации универсального API-клиента, который должен возвращать 
+ * строго типизированные структуры данных `T` без кастинга к `any`.
+ * * 🧠 КАК ЭТО ПОНЯТЬ (МЕНТАЛЬНАЯ МОДЕЛЬ):
+ * Архитектура реактивного почтового ящика. 
+ * 1. Универсальный курьер (api/client.ts): Ему не важно, что именно везти. Он берет пустой контейнер с маркировкой типа `T` 
+ * (дженерик), едет по базовому адресу, проверяет документы на таможне (HTTP status) и доставляет контейнер в целости.
+ * 2. Смарт-ящик (TodoList): На нем висит табличка с номером дома `userId` (внешний проп). Как только табличка меняется, 
+ * ящик мгновенно выполняет внутренний сброс — выкидывает старые письма (`setTodos([])`) и очищает старые уведомления 
+ * об ошибках (`setError(null)`), чтобы не запутать владельца. Только после очистки он вызывает курьера под новый номер дома.
+ * * ⚠️ WARNING (ПРОИЗВОДИТЕЛЬНОСТЬ И БЕЗОПАСНОСТЬ):
+ * Если пользователь будет очень быстро переключать `userId`, промисы могут разрешиться в неправильном порядке 
+ * (Race Condition) — данные для `userId: 1` придут позже, чем для `userId: 2`, нарушив консистентность экрана. 
+ * Для ультимативной надежности внутри `useEffect` необходимо использовать флаг отмены (Ignore Flag) или `AbortController`.
+   Главное правило для паттерна:
+    Всё, что объявлено внутри компонента (пропсы, стейты, переменные) и используется внутри useEffect, 
+    должно быть записано в массив зависимостей. Если массив пустой [] — значит, 
+    хук вообще не использует ничего из компонента и сработает строго один раз при старте.
+ */
+
+import React, { useState, useEffect } from 'react';
+
+// STEP 1: STRICT TYPES & GENERIC API CLIENT (Универсальный API-клиент)
+// ============================================================================
+
+export interface Todo {
+  id: number;
+  title: string;
+  completed: boolean;
+}
+
+const BASE_URL = 'https://mate-academy.github.io/react_dynamic-list-of-todos/api';
+
+/**
+ * Универсальный дженерик-запрос с обязательной технической валидацией ответа сервера.
+ */
+async function apiRequest<T>(url: string): Promise<T> {
+  const fullURL = `${BASE_URL}${url}.json`;
+  const response = await fetch(fullURL, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`);
+  }
+
+  const data: T = await response.json();
+  return data;
+}
+
+/**
+ * Динамический изолированный сервис для получения задач конкретного пользователя.
+ */
+export const getTodosByUserId = (userId: number): Promise<Todo[]> => 
+  apiRequest<Todo[]>(`/users/${userId}/todos`);
+
+// STEP 2: REACTIVE & OPTIMIZED UI COMPONENT (Синхронизируемый UI-компонент)
+// ============================================================================
+
+type TodoListProps = {
+  userId: number; // Внешний проп, управляющий жизненным циклом данных компонента
+};
+
+/**
+ * Чистый компонент, обернутый в React.memo для предотвращения холостых перерендеров.
+ * Реагирует на честно указанный массив зависимостей в useEffect.
+ */
+export const TodoList = React.memo(({ userId }: TodoListProps) => {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Защитный флаг для предотвращения Race Conditions и обновлений размонтированного компонента
+    let isCurrentRequest = true;
+
+    // 1. Паттерн: Сброс старых данных и ошибок при смене ключевого пропса
+    setError(null);
+    setTodos([]); 
+    setIsLoading(true);
+
+    // 2. Вызов сервиса с реактивной зависимостью от пропса
+    getTodosByUserId(userId)
+      .then((data) => {
+        if (isCurrentRequest) {
+          setTodos(data);
+        }
+      })
+      .catch((err: unknown) => {
+        if (isCurrentRequest) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('Не удалось загрузить список дел');
+          }
+        }
+      })
+      .finally(() => {
+        if (isCurrentRequest) {
+          setIsLoading(false);
+        }
+      });
+
+    // Функция очистки (Cleanup) сбрасывает валидность текущего потока при изменении userId
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [userId]); // <-- Все зависимости честно указаны. При изменении userId хук перезапустится.
+
+  return (
+    <div className="todo-container" style={{ fontFamily: 'sans-serif', padding: '16px' }}>
+      {isLoading && <p>Синхронизация данных для пользователя #{userId}...</p>}
+
+      {/* Условный рендеринг интерфейсной ошибки */}
+      {error && (
+        <p className="error-message" style={{ color: 'red', fontWeight: 'bold' }}>
+          ⚠️ {error}
+        </p>
+      )}
+
+      <ul className="todo-list" style={{ listStyleType: 'none', padding: 0 }}>
+        {todos.map((todo) => (
+          <li 
+            key={todo.id} 
+            className={todo.completed ? 'completed' : ''}
+            style={{
+              padding: '8px',
+              borderBottom: '1px solid #eee',
+              textDecoration: todo.completed ? 'line-through' : 'none',
+              color: todo.completed ? '#888' : '#000'
+            }}
+          >
+            {todo.title}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+
+// Задаем явное имя для линтера (соблюдение правила react/display-name)
+TodoList.displayName = 'TodoList';
+
+// PRACTICAL USAGE EXAMPLE (PARENT CONTROLLER)
+// ============================================================================
+
+export const AppUserTodoManager: React.FC = () => {
+  const [activeUserId, setActiveUserId] = useState<number>(1);
+
+  return (
+    <div style={{ padding: '24px', maxWidth: '600px' }}>
+      <h2>Менеджер задач сотрудников</h2>
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ marginRight: '8px', fontWeight: 'bold' }}>Выберите сотрудника ID: </label>
+        <select 
+          value={activeUserId} 
+          onChange={(e) => setActiveUserId(Number(e.target.value))}
+          style={{ padding: '6px 12px', fontSize: '14px' }}
+        >
+          <option value={1}>Сотрудник #1</option>
+          <option value={2}>Сотрудник #2</option>
+          <option value={3}>Сотрудник #3 (Эмуляция 404)</option>
+        </select>
+      </div>
+
+      <div style={{ border: '1px solid #ddd', borderRadius: '8px', background: '#fcfcfc' }}>
+        {/* Передача реактивного пропса в изолированный мемо-компонент */}
+        <TodoList userId={activeUserId} />
+      </div>
+    </div>
+  );
+};
+//#endregion
