@@ -240,3 +240,174 @@ export const TodoApp: React.FC = () => {
   );
 };
 //#endregion
+
+//#region Pattern: Unified Server List Fetching Scheme / Единая схема загрузки и оптимизации списков с сервера
+//======================================================================================================
+## Pattern: Unified Server List Fetching Scheme / Единая схема загрузки и оптимизации списков с сервера
+//======================================================================================================
+// Description: Сквозной паттерн получения данных с сервера, включающий изолированный API-сервис, безопасное управление асинхронным стейтом в UI и мемоизацию тяжелого дочернего списка.
+// Tags: react, typescript, fetch, async, state, error-handling, react-memo, optimization
+
+/**
+ * ❓ ПРОБЛЕМА:
+ * Задача «выведи список с сервера» часто решается монолитным кодом, где fetch, URL-адреса, обработка ошибок,
+ * стейты загрузки и рендеринг JSX зашиты внутрь одного компонента. Это нарушает принцип единственной
+ * ответственности (SRP), усложняет тестирование, приводит к «белым экранам» при сбоях сети и вызывает
+ * холостые перерендеры всего дерева элементов при любом изменении родительского состояния.
+ * * Напряженность типов возникает на стыке слоев: безопасное приведение `unknown` ошибок в блоке `.catch()` 
+ * и недопущение типов `any` при парсинге `response.json()`.
+ * * 🧠 КАК ЭТО ПОНЯТЬ (МЕНТАЛЬНАЯ МОДЕЛЬ):
+ * Архитектура эффективного конвейера. Конвейер разделен на три независимых цеха:
+ * 1. Цех снабжения (API Layer): Закупщик, который знает точный адрес склада (URL), забирает сырье, проверяет
+ * накладные на брак (HTTP-ошибки) и передает дальше только чистый, проверенный материал.
+ * 2. Главный офис (UI Smart Component): Менеджер, который координирует процессы. Он готовит пустые столы (дефолтный стейт `[]`),
+ * включает индикатор ожидания (isLoading), а в случае форс-мажора (catch) вывешивает понятное объявление для клиентов.
+ * 3. Цех сборки (Memoized List): Роботизированная линия сборки. Она не знает, откуда взялись детали. Робот смотрит 
+ * на партию сырья: если привезли абсолютно то же самое, что и секунду назад (пропсы не изменились), робот не тратит 
+ * энергию и не запускает конвейер заново (React.memo блокирует перерендер).
+ * * ⚠️ WARNING (ПРОИЗВОДИТЕЛЬНОСТЬ):
+ * Использование `React.memo` эффективно только тогда, когда проп `items` сохраняет стабильную ссылку в памяти. 
+ * Если в родительском компоненте массив `items` будет фильтроваться или мутировать прямо во время рендера 
+ * (например, через `.filter()` или `[...items]`), ссылка будет создаваться заново при каждом цикле, 
+ * что полностью нивелирует пользу от `React.memo`.
+ */
+
+import React, { useState, useEffect } from 'react';
+
+// STEP 0: STRICT TYPES & INTERFACES (Единые строгие типы)(new file 'type')
+// ============================================================================
+
+export interface DataType {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+
+// STEP 1: ISOLATED API DATA LAYER (Слой API: Полная изоляция сетевой логики)(new file 'serviceApi')
+// ============================================================================
+
+const BASE_URL = 'https://api.example.com';
+
+/**
+ * Базовый запрос с обязательной проверкой HTTP-статусов и типизацией границы.
+ */
+export const fetchServerData = async (): Promise<DataType[]> => {
+  const response = await fetch(`${BASE_URL}/goods`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Сетевая ошибка: ${response.status} ${response.statusText}`);
+  }
+  
+  const data: DataType[] = await response.json();
+  return data;
+};
+
+/**
+ * Хелпер первичной обработки данных на клиенте без мутации оригинала.
+ */
+export const getActiveFilteredData = async (): Promise<DataType[]> => {
+  const allData = await fetchServerData();
+  return allData.filter(item => item.isActive);
+};
+
+// STEP 2: OPTIMIZED CHILD COMPONENT (Чистый мемоизированный компонент отображения)
+// ============================================================================
+
+type ListProps = {
+  items: DataType[];
+};
+
+/**
+ * Внутренний компонент рендеринга, зависящий исключительно от входных пропсов.
+ */
+const ListComponent = ({ items }: ListProps) => {
+  console.log('🔄 [Render] ListComponent: Отрисовка элементов списка');
+  return (
+    <ul style={{ paddingLeft: '20px', lineHeight: '2' }}>
+      {items.map(item => (
+        <li key={item.id} style={{ fontWeight: '500' }}>
+          {item.name} <small style={{ color: 'green' }}>(ID: {item.id})</small>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+/**
+ * Экспорт через React.memo блокирует повторный рендеринг списка, если ссылка на items не изменилась.
+ * Защищает тяжелую UI-структуру от холостых апдейтов родителя.
+ */
+export const MemoizedList = React.memo(ListComponent);
+
+// STEP 3: SMART UI CONSUMER COMPONENT (Умный родительский компонент)
+// ============================================================================
+
+export const ServerListController: React.FC = () => {
+  // Паттерн: Безопасное дефолтное значение-пустышка [] исключает аварийное падение метода .map()
+  const [items, setItems] = useState<DataType[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  
+  // Посторонний стейт для демонстрации работы React.memo (изменение счетчика не вызовет перерендер списка)
+  const [localCounter, setLocalCounter] = useState<number>(0);
+
+  const handleLoadData = () => {
+    setIsLoading(true);
+    setError(null);
+
+    // Цепочка обработки промисов со строгим интерфейсным отловом ошибок
+    getActiveFilteredData()
+      .then((data) => {
+        setItems(data);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Не удалось получить актуальный список товаров');
+        }
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
+
+  return (
+    <div style={{ padding: '24px', fontFamily: 'sans-serif', maxWidth: '500px', border: '1px solid #eaeaea', borderRadius: '12px' }}>
+      <h3>Архитектурный шаблон: Получение списка с сервера</h3>
+      
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+        <button 
+          onClick={handleLoadData} 
+          disabled={isLoading}
+          style={{ padding: '8px 16px', background: '#0070f3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+        >
+          {isLoading ? 'Загрузка...' : 'Запросить данные'}
+        </button>
+
+        <button 
+          onClick={() => setLocalCounter(prev => prev + 1)}
+          style={{ padding: '8px 16px', background: '#f5f5f5', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer' }}
+        >
+          Холостой клик родителя: {localCounter}
+        </button>
+      </div>
+      
+      {/* Интерфейсный вывод технической или сетевой ошибки */}
+      {error && (
+        <div style={{ padding: '12px', background: '#ffeeee', color: '#cc0000', borderRadius: '6px', marginBottom: '16px', fontWeight: 'bold' }}>
+          ⚠️ Ошибка загрузки: {error}
+        </div>
+      )}
+      
+      {/* Безопасная передача данных в оптимизированный дочерний слой */}
+      <div style={{ background: '#fafafa', padding: '12px', borderRadius: '6px' }}>
+        <MemoizedList items={items} />
+      </div>
+    </div>
+  );
+};
+//#endregion
