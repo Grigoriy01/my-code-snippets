@@ -23,3 +23,19 @@ const enrichedTodos = todos.map(todo => {
 const maxId = items.reduce((max, item) => (item.id > max ? item.id : max), 0);
 const nextId = maxId + 1;
 ```
+### Алгоритм: Поиск одиночного элемента через побитовый XOR
+Находит единственное число без пары в массиве дубликатов за линейное время $O(n)$ и без выделения памяти $O(1)$. Одинаковые числа при столкновении через оператор `^` аннигилируются в `0`.
+
+```typescript
+export const findSingleNumXOR = (nums: number[]): number => {
+  // Свойства XOR гарантируют, что все парные числа превратятся в 0, 
+  // оставив в результате только уникальный элемент.
+  return nums.reduce((acc, n) => acc ^ n, 0);
+};
+
+// Пример: findSingleNumXOR([4, 1, 2, 1, 2]) -> вернет 4
+```
+
+
+
+
