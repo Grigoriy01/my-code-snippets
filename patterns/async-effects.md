@@ -32,6 +32,7 @@ useEffect(() => {
 ```
 ### Микро-синтаксис: Безопасный fetch-сервис (API слой)
 Типизированная обертка над нативным fetch. Генерирует исключение, если сервер ответил ошибками типа 404 или 500, что заставляет сработать блок .catch в useEffect.
+
 ```tsx
 async function apiRequest<T>(url: string): Promise<T> {
   const response = await fetch(url);
