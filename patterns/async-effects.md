@@ -29,3 +29,17 @@ useEffect(() => {
     isCurrentRequest = false; 
   };
 }, [id]); // Эффект перезапустится строго при изменении id
+```
+### Микро-синтаксис: Безопасный fetch-сервис (API слой)
+Типизированная обертка над нативным fetch. Генерирует исключение, если сервер ответил ошибками типа 404 или 500, что заставляет сработать блок .catch в useEffect.
+```tsx
+async function apiRequest<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`Ошибка сети: ${response.status}`);
+  }
+  
+  return response.json() as Promise<T>;
+}
+```
