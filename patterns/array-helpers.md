@@ -92,3 +92,18 @@ const visibleTodos = useMemo(() => {
 ```  
 </details>
 
+### ребенок не должен заменять весь массив одним фильмом, он должен добавить его в существующий список. В React для добавления элемента в массив стейта используется деструктуризация (спред-оператор ...).
+
+```typescript
+
+// В App.tsx создаем функцию добавления
+const handleAddMovie = (newMovie: Movie) => {
+  setMovies((prevMovies) => [...prevMovies, newMovie]);
+};
+
+// Передаем эту функцию ребенку
+<Find onAdd={handleAddMovie} />
+```
+
+
+
