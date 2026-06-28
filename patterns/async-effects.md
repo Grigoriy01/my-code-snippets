@@ -1,87 +1,92 @@
 # 🧰 Асинхронные эффекты и API
 
 ### Паттерн: useEffect + Спиннер + Ошибка + Защита от Race Condition
-Универсальный скелет для безопасной загрузки данных по динамическому `id`. Флаг `isCurrentRequest` гарантирует, что старый отменившийся запрос не перезапишет актуальные данные в стейте.
+Универсальный скелет для безопасной загрузки данных по динамическому `id`. Флаг `isCurrentRequest` гарантирует, что старый отменившийся запрос не перезапишет актуальные данные в стейте когда пользователь быстро кликает по элементам или вводит текст.
 
 ```tsx
 useEffect(() => {
-  let isCurrentRequest = true; // Флаг отмены для защиты от Race Condition
+  // 1. Ранний выход (Защита от пустых запросов)
+  if (!searchQuery) return;
 
-  // 1. Старт: Включаем загрузку и сбрасываем старое состояние
+  // 2. Инициализация локального флага актуальности
+  let isCurrent = true;
+
+  // 3. Включение индикатора загрузки
   setIsLoading(true);
-  setError(null);
 
-  // 2. Асинхронный запрос к API
-  apiMethod(id)
-    .then((result) => {
-      // Данные запишутся, только если компонент не сменил id за время ожидания
-      if (isCurrentRequest) setData(result); 
+  // 4. Сам сетевой запрос
+  executeApiCall(searchQuery)
+    .then((data) => {
+      // Проверяем, не устарел ли запрос, пока мы ждали ответ
+      if (isCurrent) {
+        setData(data);
+        setError(null);
+      }
     })
     .catch((err) => {
-      if (isCurrentRequest) setError(err.message || 'Ошибка загрузки');
+      // Проверяем актуальность и для обработки ошибок
+      if (!isCurrent) return;
+      
+      // Разбираем типы ошибок (Твоя доработка)
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Что-то пошло не так');
+      }
+      setData(null);
     })
     .finally(() => {
-      if (isCurrentRequest) setIsLoading(false);
+      // Выключаем лоадер только для живого компонента
+      if (isCurrent) {
+        setIsLoading(false);
+      }
     });
 
-  // 3. Очистка: Срабатывает при размонтировании или смене id
-  return () => { 
-    isCurrentRequest = false; 
+  // 5. Функция очистки (Clean-up) — «сердце» паттерна
+  return () => {
+    isCurrent = false; // "Выключаем" этот запрос при любом перезапуске
   };
-}, [id]); // Эффект перезапустится строго при изменении id
+}, [searchQuery, trigger]); // Зависимости, которые перезапускают этот конвейер
 ```
 ### Микро-синтаксис: Безопасный fetch-сервис (API слой)
 Типизированная обертка над нативным fetch. Генерирует исключение, если сервер ответил ошибками типа 404 или 500, что заставляет сработать блок .catch в useEffect.
-
+<details>
+  
 ```tsx
-async function apiRequest<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  
+// 1. Чистая функция-маппер (вынесена отдельно)
+// Её задача — строго взять ТИП А и превратить в ТИП Б
+function mapToMovie(dataMovie: MovieData): Movie {
+  const DEFAULT_POSTER = 'https://via.placeholder.com/360x270.png?text=no%20preview';
+
+  return {
+    title: dataMovie.Title,
+    description: dataMovie.Plot,
+    imgUrl: dataMovie.Poster && dataMovie.Poster !== 'N/A' ? dataMovie.Poster : DEFAULT_POSTER,
+    imdbUrl: `https://www.imdb.com/title/${dataMovie.imdbID}`,
+    imdbId: dataMovie.imdbID,
+  };
+}
+
+// 2. Сама функция запроса становится очень короткой и читаемой
+export async function getMovie(query: string): Promise<Movie> {
+  const response = await fetch(`${API_URL}&t=${query}`);
+
   if (!response.ok) {
-    throw new Error(`Ошибка сети: ${response.status}`);
+    throw new Error('unexpected error');
   }
-  
-  return response.json() as Promise<T>;
+
+  const dataMovie: MovieData | ResponseError = await response.json();
+
+  if ('Error' in dataMovie) {
+    throw new Error(dataMovie.Error || 'Movie not found!');
+  }
+
+  // Просто пропускаем чистые данные через наш маппер
+  return mapToMovie(dataMovie);
 }
 ```
-###  Микро-синтаксис: Сброс стейта при смене пропса (Reset State)
-Теги: #react #use-effect #state-reset
-### Суть: Перед каждым новым запросом данных по изменившемуся пропсу (например, userId) обязательно нужно синхронно очистить старое состояние, чтобы пользователь не видел артефакты прошлых данных на экране во время загрузки новых.
+</details>
 
-```tsx
-useEffect(() => {
-  let isCurrentRequest = true;
-
-  // Синхронный сброс перед вызовом API предотвращает отображение старых данных
-  setError(null);
-  setTodos([]); 
-  setIsLoading(true);
-
-  getTodosByUserId(userId)
-    .then((data) => {
-      if (isCurrentRequest) setTodos(data);
-    })
-    // ... catch & finally
-    
-  return () => { isCurrentRequest = false; };
-}, [userId]); // Реагирует на изменение внешнего пропса
-```
-### Микро-синтаксис: Безопасный перехват неизвестных ошибок (unknown)
-Теги: #typescript #error-handling
-### Суть: В TypeScript блок catch(err) по умолчанию возвращает тип unknown. 
-Принудительное приведение через as Error небезопасно. Правильный подход — проверка через instanceof
-
-```tsx
-.catch((err: unknown) => {
-  if (err instanceof Error) {
-    // Безопасно обращаемся к .message, так как TS уверен, что это объект ошибки
-    setError(err.message); 
-  } else {
-    // Фолбек для строк или неопознанных объектов
-    setError('Произошла непредвиденная ошибка'); 
-  }
-})
-```
 ### Искусственная задержка для тестирования лоадеров (Утилита wait)
 Теги: #typescript #promises #loading #testing
 Суть: Простой хелпер на чистых промисах, который задерживает выполнение следующего звена цепочки .then() на указанное количество миллисекунд. Идеально для симуляции медленного соединения.
