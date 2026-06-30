@@ -2,7 +2,8 @@
 
 ### Паттерн: useEffect + Спиннер + Ошибка + Защита от Race Condition
 Универсальный скелет для безопасной загрузки данных по динамическому `id`. Флаг `isCurrentRequest` гарантирует, что старый отменившийся запрос не перезапишет актуальные данные в стейте когда пользователь быстро кликает по элементам или вводит текст.
-
+<details>
+  
 ```tsx
 useEffect(() => {
   // 1. Ранний выход (Защита от пустых запросов)
@@ -48,6 +49,53 @@ useEffect(() => {
   };
 }, [searchQuery, trigger]); // Зависимости, которые перезапускают этот конвейер
 ```
+</details>
+
+### Универсальный HTTP-клиент (Обертка над Fetch / Паттерн Фасад)
+Теги: #typescript #fetch #api #http-client #facade
+Суть: Создание централизованного слоя для работы с сетевыми запросами. Автоматически сериализует отправляемые данные в JSON,
+проставляет необходимые заголовки и проверяет HTTP-статусы ответа (выбрасывает исключение при ошибках 4xx/5xx). 
+Избавляет компоненты от дублирования логики конфигурации fetch.
+<details>
+  
+```tsx
+const BASE_URL = 'https://api.example.com'; // Базовый URL твоего API
+
+// Универсальная приватная функция-обертка
+async function request<T>(url: string, method = 'GET', data?: any): Promise<T> {
+  const options: RequestInit = { method };
+
+  // Автоматическая сборка тела запроса и проставление заголовков
+  if (data !== undefined) {
+    options.body = JSON.stringify(data);
+    options.headers = {
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+  }
+
+  const response = await fetch(BASE_URL + url, options);
+
+  // Обработка невалидных HTTP-статусов (404, 500 и т.д.)
+  if (!response.ok) {
+    throw new Error(`Ошибка запроса: ${method} ${url} (Статус: ${response.status})`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+// Публичный интерфейс (Фасад) для лаконичного использования в коде
+export const httpClient = {
+  get: <T>(url: string) => request<T>(url, 'GET'),
+  post: <T>(url: string, data: any) => request<T>(url, 'POST', data),
+  patch: <T>(url: string, data: any) => request<T>(url, 'PATCH', data),
+  delete: <T>(url: string) => request<T>(url, 'DELETE'),
+};
+
+// Пример использования:
+// httpClient.get<User[]>('/users').then(users => ...);
+```
+</details>
+
 ### Микро-синтаксис: Безопасный fetch-сервис (API слой)
 Типизированная обертка над нативным fetch. Генерирует исключение, если сервер ответил ошибками типа 404 или 500, что заставляет сработать блок .catch в useEffect.
 <details>
