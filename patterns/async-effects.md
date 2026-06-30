@@ -6,49 +6,42 @@
 <details>
   
 ```tsx
+// components/AnyComponent.tsx
+import { useEffect, useState } from 'react';
+
+// Пример вызова внутри эффекта
 useEffect(() => {
-  // 1. Ранний выход (Защита от пустых запросов)
-  if (!searchQuery) return;
+  if (!searchQuery) return; // Ранний выход, если запрос пустой
 
-  // 2. Инициализация локального флага актуальности
-  let isCurrent = true;
-
-  // 3. Включение индикатора загрузки
+  let isCurrent = true; // Локальный флаг актуальности для текущего "кадра" эффекта
   setIsLoading(true);
 
-  // 4. Сам сетевой запрос
-  executeApiCall(searchQuery)
-    .then((data) => {
-      // Проверяем, не устарел ли запрос, пока мы ждали ответ
+  async function fetchData() {
+    try {
+      const data = await dataService.getSomeData(searchQuery);
+      
+      // Обновляем стейт ТОЛЬКО если этот запрос всё еще актуален
       if (isCurrent) {
         setData(data);
         setError(null);
       }
-    })
-    .catch((err) => {
-      // Проверяем актуальность и для обработки ошибок
-      if (!isCurrent) return;
-      
-      // Разбираем типы ошибок (Твоя доработка)
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Что-то пошло не так');
-      }
-      setData(null);
-    })
-    .finally(() => {
-      // Выключаем лоадер только для живого компонента
+    } catch (err) {
+      if (!isCurrent) return; // Если запрос отменен — игнорируем ошибку
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
       if (isCurrent) {
         setIsLoading(false);
       }
-    });
+    }
+  }
 
-  // 5. Функция очистки (Clean-up) — «сердце» паттерна
+  fetchData();
+
+  // Функция очистки (Clean-up) — переводит флаг старого эффекта в false
   return () => {
-    isCurrent = false; // "Выключаем" этот запрос при любом перезапуске
+    isCurrent = false;
   };
-}, [searchQuery, trigger]); // Зависимости, которые перезапускают этот конвейер
+}, [searchQuery]); // Эффект перезапустится при изменении searchQuery
 ```
 </details>
 
@@ -178,3 +171,58 @@ export const getTodos = () => get<Todo[]>('/todos');
 export const getUser = (userId: number) => get<User>(`/users/${userId}`);
 ```
 </details>
+
+### Контролируемая форма со сбросом и пробросом ошибок (throw error)
+Где применять: Компоненты создания/редактирования (например, PostForm.tsx).
+Зачем нужен: Кнопка блокируется на время отправки (submitting), защищая от дубликатов. Важнейший нюанс — throw error в блоке catch обработчика. Он сообщает форме, что запрос упал, поэтому форма не вызывает сброс полей (reset), сохраняя введенный пользователем текст в инпутах.
+<details>
+  
+```tsx
+// components/PostForm.tsx
+import React, { useState } from 'react';
+
+type Props = {
+  // Функция отправки возвращает Promise, чтобы форма знала, когда запрос завершился
+  onSubmit: (data: { title: string }) => Promise<void>; 
+};
+
+export const PostForm: React.FC<Props> = ({ onSubmit }) => {
+  const [title, setTitle] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!title.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit({ title }); // Ждем успешного выполнения родительской функции
+      setTitle('');              // СБРОС поля формы происходит ТОЛЬКО при успехе
+    } catch (error) {
+      // При ошибке стейт title НЕ сбрасывается, текст пользователя спасен!
+      console.error('Форма зафиксировала ошибку отправки');
+    } finally {
+      setIsSubmitting(false); // В любом случае разблокируем кнопку
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input 
+        value={title} 
+        onChange={(e) => setTitle(e.target.value)} 
+        disabled={isSubmitting} 
+      />
+      <button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? 'Сохранение...' : 'Создать'}
+      </button>
+    </form>
+  );
+};
+```
+</details>
+
+
+
+
+
