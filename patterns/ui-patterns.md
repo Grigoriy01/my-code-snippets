@@ -9,57 +9,44 @@
 ```tsx
 import { useState, useRef, useEffect } from 'react';
 
-export const AutocompleteInput = ({ items, onSelect }) => {
-  const [query, setQuery] = useState('');
+export const DropdownMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   
-  // Хранилище для ссылки на таймер, чтобы избежать утечек памяти
-  const timeoutRef = useRef<number | null>(null);
+  // 1. Создаем ссылку на верхний DOM-контейнер меню
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Очистка таймера при размонтировании компонента (Защита от краша)
   useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    // Если меню закрыто — вешать глобальный слушатель событий нет смысла
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const container = dropdownRef.current;
+
+      // 2. Проверяем: если контейнер существует и клик произошел МИМО него
+      if (container && !container.contains(target)) {
+        setIsOpen(false); // Закрываем меню
+      }
     };
-  }, []);
 
-  const handleBlur = () => {
-    // Сдвигаем закрытие в конец очереди макрозадач (Event Loop)
-    timeoutRef.current = window.setTimeout(() => {
-      setIsOpen(false);
-    }, 150); // 150мс достаточно, чтобы успел сработать onClick дочернего элемента
-  };
-
-  const handleFocus = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setIsOpen(true);
-  };
-
-  const handleItemClick = (item: any) => {
-    // Если клик успел сработать — очищаем таймер закрытия
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setQuery(item.label);
-    setIsOpen(false);
-    onSelect(item);
-  };
+    // 'mousedown' срабатывает быстрее обычного 'click', улучшая отзывчивость интерфейса
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Обязательная очистка глобального слушателя
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]); // Эффект перезапускается только при переключении состояния видимости
 
   return (
-    <div className="autocomplete-container">
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-      />
+    // 3. Привязываем созданный реф к самому верхнему оберточному тегу
+    <div ref={dropdownRef} className="dropdown-container">
+      <button onClick={() => setIsOpen(!isOpen)}>Открыть меню</button>
       
       {isOpen && (
-        <ul className="dropdown-list">
-          {items.map((item) => (
-            <li key={item.id} onClick={() => handleItemClick(item)}>
-              {item.label}
-            </li>
-          ))}
+        <ul className="dropdown-menu">
+          <li>Пункт 1</li>
+          <li>Пункт 2</li>
         </ul>
       )}
     </div>
@@ -67,3 +54,9 @@ export const AutocompleteInput = ({ items, onSelect }) => {
 };
 ```
 </details>
+
+
+
+
+
+
