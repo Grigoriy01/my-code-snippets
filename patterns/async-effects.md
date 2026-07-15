@@ -222,6 +222,52 @@ export const PostForm: React.FC<Props> = ({ onSubmit }) => {
 ```
 </details>
 
+### Нативный Hash-роутинг через useEffect (Синхронизация с URL)
+Теги: #react #use-effect #routing #url-hash #dom-events
+Суть: Управление активной сущностью в приложении напрямую через # хэш в URL-адресе. Браузерное событие hashchange позволяет отслеживать переключения назад/вперед в браузере и мгновенно синхронизировать состояние компонента с адресной строкой.
+<details>
 
+```tsx
+import { useState, useEffect } from 'react';
+
+export const UserProfileSync = ({ users }) => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      // 1. Извлекаем ID из хэша (например, из '#user-5' получаем '5')
+      const idStr = window.location.hash.replace('#user-', '');
+      
+      if (!idStr) {
+        setCurrentUser(null);
+        return;
+      }
+
+      // 2. Парсим ID и ищем соответствующий объект в массиве
+      const userId = Number(idStr);
+      const foundUser = users.find(u => u.id === userId);
+
+      // 3. Синхронизируем стейт (если юзер не найден, безопасно сбрасываем в null)
+      setCurrentUser(foundUser || null);
+    };
+
+    // Вызываем обработчик сразу при монтировании, чтобы считать хэш при старте страницы
+    handleHashChange();
+
+    // Подписываемся на изменения хэша в браузере
+    window.addEventListener('hashchange', handleHashChange);
+
+    // Обязательная очистка глобальной подписки
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, [users]); // Эффект перезапустится, если массив пользователей обновится
+};
+------ wenn reload page , the selected user must an url clearing
+useEffect(() => {
+    window.location.hash = '';
+  }, []);
+```
+</details>
 
 
