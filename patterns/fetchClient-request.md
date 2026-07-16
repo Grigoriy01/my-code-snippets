@@ -1,3 +1,5 @@
+## PAttern
+```tsx
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const BASE_URL = 'https://mate.academy/students-api';
 
@@ -38,3 +40,4 @@ export const client = {
   patch: <T>(url: string, data: any) => request<T>(url, 'PATCH', data),
   delete: (url: string) => request(url, 'DELETE'),
 };
+```
