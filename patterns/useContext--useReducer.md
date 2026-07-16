@@ -1,6 +1,11 @@
 ## Шаблон TypeScript для React `useReducer`
 
 Этот шаблон содержит готовую архитектуру для типизации состояния, экшенов и самого редьюсера. Скопируйте этот код в файл вашей фичи (например, `postsReducer.ts`).
+src/
+└── types/
+    ├── post.ts         # export interface Post { ... }
+    ├── comment.ts      # export interface Comment { ... }
+    └── user.ts         # export interface User { ... }
 
 ---
 
