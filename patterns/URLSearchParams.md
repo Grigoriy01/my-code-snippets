@@ -7,7 +7,7 @@
 3. Для точечного изменения одного фильтра без потери других: setSearchParams(getSearchWith({ key: 'val' }, searchParams)).
 
 4. Для сброса отдельного параметра: getSearchWith({ key: null }, searchParams).
-
+##
 
 ### Вспомогательная функция getSearchWith (Умный мердж параметров)
 Эта функция решает главную проблему setSearchParams: 
