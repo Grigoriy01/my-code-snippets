@@ -46,7 +46,7 @@ export function getSearchWith(paramsToUpdate, search = '') {
 }
 ```
 </details>
-
+##
 
 ### Связка текстового инпута / поиска с URL (useSearchParams)
   Паттерн для управляемого поля ввода (поиск, сортировка), где источник истины — URL.
