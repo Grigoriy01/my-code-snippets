@@ -7,7 +7,7 @@
 3. Для точечного изменения одного фильтра без потери других: setSearchParams(getSearchWith({ key: 'val' }, searchParams)).
 
 4. Для сброса отдельного параметра: getSearchWith({ key: null }, searchParams).
-##
+
 
 ### Вспомогательная функция getSearchWith (Умный мердж параметров)
 Эта функция решает главную проблему setSearchParams: 
@@ -46,7 +46,7 @@ export function getSearchWith(paramsToUpdate, search = '') {
 }
 ```
 </details>
-##
+
 
 ### Связка текстового инпута / поиска с URL (useSearchParams)
   Паттерн для управляемого поля ввода (поиск, сортировка), где источник истины — URL.
@@ -86,7 +86,7 @@ export const SearchInput = () => {
 };**
 ```
 </details> 
-##
+
 
 ### Кастомный компонент-обертка SearchLink
   Компонент для навигации по ссылкам, который автоматически сохраняет текущие фильтры       пользователя и добавляет только указанные params.
@@ -121,7 +121,7 @@ export const SearchLink = ({ to, params = {}, children, ...props }) => {
 // <SearchLink to="/products" params={{ page: '2' }}>Страница 2</SearchLink>
 ```
 </details>
-##
+
 
 ### Множественный выбор / Массивы (Чекбоксы, Мультиселект)
   Когда у одного ключа может быть несколько значений в URL (?category=tech&category=books).
@@ -170,7 +170,7 @@ export const CategoryFilter = ({ categoryName }) => {
 };
 ```
 </details>
-##
+
 
 ### Полный сброс всех фильтров
   Кнопка «Сбросить фильтры» или сброс выбранных параметров до значения по умолчанию.
