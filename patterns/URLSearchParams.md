@@ -85,6 +85,59 @@ export const SearchInput = () => {
   );
 };**
 ```
+with debounse 
+
+```
+export const SearchInput = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // 1. Считываем значение из URL при старте
+  const queryParam = searchParams.get('query') || '';
+  
+  // 2. Держим локальный стейт для мгновенного отклика инпута
+  const [inputValue, setInputValue] = useState(queryParam);
+
+  // 3. Синхронизируем локальный стейт, если URL изменился снаружи (например, при клике "назад" в браузере)
+  useEffect(() => {
+    setInputValue(queryParam);
+  }, [queryParam]);
+
+  // 4. Эффект с дебаунсом для обновления URL
+  useEffect(() => {
+    // Если локальное значение совпадает с тем, что уже в URL — ничего не делаем
+    if (inputValue === queryParam) {
+      return;
+    }
+
+    const timerId = setTimeout(() => {
+      const newSearch = getSearchWith(
+        { 
+          query: inputValue.trim() || null, // Убираем лишние пробелы и очищаем query, если пусто
+          page: null,                       // Сбрасываем пагинацию на 1 страницу
+        },
+        searchParams
+      );
+
+      setSearchParams(newSearch);
+    }, 300); // Задержка 300мс
+
+    return () => clearTimeout(timerId); // Очищаем таймер при каждом новом нажатии клавиши
+  }, [inputValue, queryParam, searchParams, setSearchParams]);
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(event.target.value);
+  };
+
+  return (
+    <input
+      type="text"
+      value={inputValue}
+      onChange={handleInputChange}
+      placeholder="Search..."
+    />
+  );
+};
+```
 </details> 
 <hr>
 
